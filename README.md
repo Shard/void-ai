@@ -1,6 +1,6 @@
-# Screeps Typescript Starter
+# Void AI
 
-Screeps Typescript Starter is a starting point for a Screeps AI written in Typescript. It provides everything you need to start writing your AI whilst leaving `main.ts` as empty as possible.
+My personal ai for screeps
 
 ## Basic Usage
 
@@ -8,9 +8,9 @@ You will need:
 
  - [Node.JS](https://nodejs.org/en/download) (>= 8.0.0)
  - A Package Manager ([Yarn](https://yarnpkg.com/en/docs/getting-started) or [npm](https://docs.npmjs.com/getting-started/installing-node))
- - Rollup CLI (Optional, install via `npm install -g rollup`) 
+ - Rollup CLI (Optional, install via `npm install -g rollup`)
  - Python 2 (for node-gyp, [Python 3 is not supported](https://github.com/nodejs/node-gyp/issues/193))
- - Build tools (`apt install build-essential` for Ubuntu, [Visual Studio](https://www.visualstudio.com/vs/) for Windows, etc) 
+ - Build tools (`apt install build-essential` for Ubuntu, [Visual Studio](https://www.visualstudio.com/vs/) for Windows, etc)
 
 
 Download the latest source [here](https://github.com/screepers/screeps-typescript-starter/archive/master.zip) and extract it to a folder.
@@ -44,15 +44,3 @@ Finally, there are also NPM scripts that serve as aliases for these commands in 
 ## Typings
 
 The type definitions for Screeps come from [typed-screeps](https://github.com/screepers/typed-screeps). If you find a problem or have a suggestion, please open an issue there.
-
-## Documentation
-
-We've also spent some time reworking the documentation from the ground-up, which is now generated through [Gitbooks](https://www.gitbook.com/). Includes all the essentials to get you up and running with Screeps AI development in TypeScript, as well as various other tips and tricks to further improve your development workflow.
-
-Maintaining the docs will also become a more community-focused effort, which means you too, can take part in improving the docs for this starter kit.
-
-To visit the docs, [click here](https://screepers.gitbooks.io/screeps-typescript-starter/).
-
-## Contributing
-
-Issues, Pull Requests, and contribution to the docs are welcome! See our [Contributing Guidelines](CONTRIBUTING.md) for more details.

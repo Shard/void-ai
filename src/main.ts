@@ -91,8 +91,7 @@ const workBuilder = ( c: Creep ) => {
 
 }
 
-// When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
-// This utility uses source maps to get the line numbers and file names of the original, TS source code
+// ErrorMapper fixes error numbers in screeps console
 export const loop = ErrorMapper.wrapLoop(() => {
   console.log(`Current game tick is ${Game.time}`);
 
@@ -109,6 +108,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
     ws.counts[creep.memory.role]++
     switch(creep.memory.role){
       case 'pleb':
+        // @TODO does memory need to be recommited?
         Memory.creeps[creep.name] = workPleb(creep).memory
         break;
       default: log('Missing Worker: ' + name + '(' + creep.memory.role + ')')

@@ -1,10 +1,12 @@
-// example declaration file - remove these and add your own custom typings
-
-// memory extension samples
 interface CreepMemory {
   role: string;
-  room: string;
-  working: boolean;
+  assigned: string | null;
+  //  room: string;
+  //  working: boolean;
+}
+
+interface WorldState {
+  counts: any
 }
 
 interface Memory {

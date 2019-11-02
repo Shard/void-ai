@@ -10,6 +10,7 @@
     "strict": true,
     "experimentalDecorators": true,
     "noImplicitReturns": true,
+    "noImplicitAny": false,
     "allowSyntheticDefaultImports": true,
     "allowUnreachableCode": false
   },

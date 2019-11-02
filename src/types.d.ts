@@ -1,8 +1,7 @@
 interface CreepMemory {
   role: string;
-  assigned: string | null;
-  //  room: string;
-  //  working: boolean;
+  assigned: string;
+  task: string;
 }
 
 interface WorldState {

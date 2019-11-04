@@ -7,7 +7,7 @@ const random = _.random
 const log = (o:any) => console.log('log', JSON.stringify(o))
 
 const makePleb = ( spawn: StructureSpawn ) => spawn.spawnCreep(
-  [WORK,CARRY,CARRY,MOVE],
+  [WORK,CARRY,MOVE],
   'Pleb ' + getName(),
   {memory: {role: Role.pleb, assigned: 'init', task: 'idle'}}
 )
@@ -116,16 +116,24 @@ export const loop = ErrorMapper.wrapLoop(() => {
   }
 
   // Create workers
-  const action = ws.counts.pleb < 7 ? makePleb : null
+  const action = ws.counts.pleb < 12 ? makePleb : null
   if (action !== null) action(Spawn)
 
   // Towers
   const tower = _.find(Game.structures, {structureType: STRUCTURE_TOWER}) as StructureTower
   if(tower){
-    for(const name in Game.structures){
-      const s = Game.structures[name]
+    const structs = tower.room.find(FIND_STRUCTURES, {
+      filter: {structureType: STRUCTURE_ROAD}
+    })
+    for(const name in structs){
+      const s = structs[name]
       if(s.hits < s.hitsMax){
-        tower.repair(s)
+        const result = tower.repair(s)
+        if(result === ERR_NOT_ENOUGH_ENERGY){
+          console.log('Tower is low on energy')
+        }else if(result !== 0){
+          console.log('Tower Repair Error', result)
+        } else { break }
       }
     }
   }

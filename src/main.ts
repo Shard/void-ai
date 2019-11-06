@@ -10,6 +10,13 @@ const ROLE_PLEB = 'Pleb'
 const ROLE_MINER = 'Miner'
 const ROLE_HAULER = 'Hauler'
 
+const taskToIcon = (s: string) =>
+    s === 'mine' ? '⛏️'
+  : s === 'idle' ? '💤'
+  : s === 'repair' ? '🛠️'
+  : s === 'supply' ? '⚡'
+  : s === 'upgrade' ? '👍'
+  : s
 
 // Return a mining node using round robin with room memory
 const getMiningNode = ( room: Room ) => {
@@ -101,7 +108,7 @@ const workPleb = ( creep: Creep ) => {
   if(pleb.memory.assigned === 'idle' || pleb.memory.task === 'idle'){
     pleb = assignPleb(pleb)
     if(pleb.memory.task === 'mine') console.log(pleb.memory.assigned)
-    pleb.say(pleb.memory.task)
+    pleb.say(taskToIcon(pleb.memory.task))
   }
 
   // Carry out work
@@ -168,7 +175,7 @@ const workTower = ( t: StructureTower ) => {
     if(s.hits < s.hitsMax){
       const result = t.repair(s)
       if(result === ERR_NOT_ENOUGH_ENERGY){
-        console.log('Tower is low on energy')
+        //console.log('Tower is low on energy')
       }else if(result !== 0){
         console.log('Tower Repair Error', result)
       } else { break }
@@ -186,7 +193,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
   // Get WorldState
   const ws:WorldState = {
-    counts: { pleb: 0 }
+    counts: { Pleb: 0 }
   }
 
   // Creep Role code
@@ -194,7 +201,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
     const creep = Game.creeps[name]
     ws.counts[creep.memory.role]++
     switch(creep.memory.role){
-      case 'pleb':
+      case ROLE_PLEB:
         // @TODO does memory need to be recommited?
         Memory.creeps[creep.name] = workPleb(creep).memory
         break;
@@ -203,7 +210,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
   }
 
   // Create workers
-  const action = ws.counts.pleb < 9 ? makePleb : null
+  const action = ws.counts.Pleb < 9 ? makePleb : null
   if (action !== null) action(Spawn)
 
   // Towers

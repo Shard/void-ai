@@ -8,6 +8,10 @@ interface WorldState {
   counts: any
 }
 
+interface RoomMemory {
+  lastMined: string;
+}
+
 interface Memory {
   uuid: number;
   log: any;

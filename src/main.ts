@@ -1,15 +1,44 @@
 import { ErrorMapper } from "utils/ErrorMapper"
-import { Role, getName } from './memes'
+import { getName } from './memes'
 import _ from 'lodash'
 
 const random = _.random
 
-const log = (o:any) => console.log('log', JSON.stringify(o))
+const log = (o:any) => console.log('log', JSON.stringify(o)) || o
+
+const ROLE_PLEB = 'Pleb'
+const ROLE_MINER = 'Miner'
+const ROLE_HAULER = 'Hauler'
+
+
+// Return a mining node using round robin with room memory
+const getMiningNode = ( room: Room ) => {
+  const nodes = room.find(FIND_SOURCES)
+  let found = false
+  for(const i in nodes){
+    if(nodes[i].id === room.memory.lastMined){ found = true;continue; }
+    if(found){ room.memory.lastMined = nodes[i].id; return nodes[i] }
+  }
+  room.memory.lastMined = nodes[0].id
+  return nodes[0]
+}
 
 const makePleb = ( spawn: StructureSpawn ) => spawn.spawnCreep(
   [WORK,WORK,CARRY,MOVE],
   'Pleb ' + getName(),
-  {memory: {role: Role.pleb, assigned: 'init', task: 'idle'}}
+  { memory: {role: ROLE_PLEB, assigned: 'init', task: 'idle'} }
+)
+
+const makeMiner = ( spawn: StructureSpawn ) => spawn.spawnCreep(
+  [WORK,WORK,WORK,WORK,WORK,CARRY,CARRY,MOVE,MOVE],
+  'Miner ' + getName(),
+  { memory: {role: ROLE_MINER, assigned: getMiningNode(spawn.room).id, task: 'mine'} }
+)
+
+const makeHauler = ( spawn: StructureSpawn ) => spawn.spawnCreep(
+  [CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,MOVE,MOVE,MOVE,MOVE],
+  'Hauler' + getName(),
+  { memory: { role: ROLE_HAULER, assigned: 'init', task: 'idle' } }
 )
 
 const assign = (id:string, task:string) => (c:Creep) => {
@@ -22,12 +51,10 @@ const assignIdle = assign('bored', 'idle')
 const assignPleb = (pleb: Creep): Creep => {
   // Get Energy
   if(pleb.carry.energy === 0){
-    const nodes = pleb.room.find(FIND_SOURCES)
-    // @need to come up with some kind of better way to assign plebs correctly
-    return assign(nodes[random(0,nodes.length-1)].id, 'mine')(pleb)
+    return assign(getMiningNode(pleb.room).id, 'mine')(pleb)
   }
 
-  // Check if controller is a bit low
+  // Check if controller is below lvl 3 or decaying
   if(pleb.room.controller && pleb.room.controller.ticksToDowngrade < 35000){
     return assign(pleb.room.controller.id, 'upgrade')(pleb)
   }
@@ -53,7 +80,7 @@ const assignPleb = (pleb: Creep): Creep => {
 
   // Repair Walls
   const wall = pleb.room.find(FIND_STRUCTURES, {
-    filter: s => s.structureType === STRUCTURE_WALL && s.hits < 1000000
+    filter: s => s.structureType === STRUCTURE_WALL && s.hits < 200000
   })
   if(wall[0]){ return assign(wall[0].id, 'repair')(pleb) }
 
@@ -62,11 +89,18 @@ const assignPleb = (pleb: Creep): Creep => {
   return assign(pleb.room.controller.id, 'upgrade')(pleb)
 }
 
+const assignHauler = (hauler: Creep): Creep => {
+  // Move from containers to storage
+  // Supply towers and extensions
+  return hauler
+}
+
 const workPleb = ( creep: Creep ) => {
 
   let pleb = creep
   if(pleb.memory.assigned === 'idle' || pleb.memory.task === 'idle'){
     pleb = assignPleb(pleb)
+    if(pleb.memory.task === 'mine') console.log(pleb.memory.assigned)
     pleb.say(pleb.memory.task)
   }
 
@@ -109,7 +143,11 @@ const workPleb = ( creep: Creep ) => {
 
 }
 
-const workBuilder = ( c: Creep ) => {
+const workMiner = ( c: Creep ) => {
+
+}
+
+const workHauler = ( c: Creep ) => {
 
 }
 
@@ -137,6 +175,8 @@ const workTower = ( t: StructureTower ) => {
     }
   }
 }
+
+console.log('init?')
 
 // ErrorMapper fixes error numbers in screeps console
 export const loop = ErrorMapper.wrapLoop(() => {

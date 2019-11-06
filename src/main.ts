@@ -7,7 +7,7 @@ const random = _.random
 const log = (o:any) => console.log('log', JSON.stringify(o))
 
 const makePleb = ( spawn: StructureSpawn ) => spawn.spawnCreep(
-  [WORK,CARRY,MOVE],
+  [WORK,WORK,CARRY,MOVE],
   'Pleb ' + getName(),
   {memory: {role: Role.pleb, assigned: 'init', task: 'idle'}}
 )
@@ -27,11 +27,15 @@ const assignPleb = (pleb: Creep): Creep => {
     return assign(nodes[random(0,nodes.length-1)].id, 'mine')(pleb)
   }
 
-  // Try and build a site
-  const sites = Object.keys(Game.constructionSites)
-  if(sites.length > 0){
-    const site = Game.constructionSites[sites[random(0,sites.length-1)]]
-    return assign(site.id, 'build')(pleb)
+  // Check if controller is a bit low
+  if(pleb.room.controller && pleb.room.controller.ticksToDowngrade < 35000){
+    return assign(pleb.room.controller.id, 'upgrade')(pleb)
+  }
+
+  // Supply Extensions
+  const extension = _.find(Game.structures, (s: StructureExtension) => s.structureType === STRUCTURE_EXTENSION && s.energyCapacity > s.energy)
+  if(extension){
+    return assign(extension.id, 'supply')(pleb)
   }
 
   // Supply Tower
@@ -39,6 +43,19 @@ const assignPleb = (pleb: Creep): Creep => {
   if(tower && tower.energy < tower.energyCapacity){
     return assign(tower.id, 'supply')(pleb)
   }
+
+  // Try and build a site
+  const sites = Object.keys(Game.constructionSites)
+  if(sites.length > 0){
+    const site = Game.constructionSites[sites[random(0,sites.length-1)]]
+    return assign(site.id, 'build')(pleb)
+  }
+
+  // Repair Walls
+  const wall = pleb.room.find(FIND_STRUCTURES, {
+    filter: s => s.structureType === STRUCTURE_WALL && s.hits < 1000000
+  })
+  if(wall[0]){ return assign(wall[0].id, 'repair')(pleb) }
 
   // All else upgrade controller
   if(typeof pleb.room.controller === 'undefined'){ return pleb; }
@@ -49,9 +66,8 @@ const workPleb = ( creep: Creep ) => {
 
   let pleb = creep
   if(pleb.memory.assigned === 'idle' || pleb.memory.task === 'idle'){
-    console.log(pleb.name + ' was ' + pleb.memory.task)
     pleb = assignPleb(pleb)
-    console.log(pleb.name + ' assigned ' + pleb.memory.task)
+    pleb.say(pleb.memory.task)
   }
 
   // Carry out work
@@ -82,6 +98,12 @@ const workPleb = ( creep: Creep ) => {
       pleb.moveTo(dest)
       pleb.transfer(dest, RESOURCE_ENERGY)
       break;
+    case 'repair':
+      const wall = Game.getObjectById(pleb.memory.assigned) as StructureWall
+      if(wall.hits >= wall.hitsMax || pleb.carry.energy === 0){ return assignIdle(pleb) }
+      pleb.moveTo(wall)
+      pleb.repair(wall)
+      break;
   }
   return pleb
 
@@ -91,9 +113,34 @@ const workBuilder = ( c: Creep ) => {
 
 }
 
+const workTower = ( t: StructureTower ) => {
+  const enemies = t.room.find(FIND_CREEPS, {
+    filter: { my: false }
+  })
+  if(enemies[0]){
+    t.attack(enemies[0])
+    return;
+  }
+
+  const structs = t.room.find(FIND_STRUCTURES, {
+    filter: {structureType: STRUCTURE_ROAD}
+  })
+  for(const name in structs){
+    const s = structs[name]
+    if(s.hits < s.hitsMax){
+      const result = t.repair(s)
+      if(result === ERR_NOT_ENOUGH_ENERGY){
+        console.log('Tower is low on energy')
+      }else if(result !== 0){
+        console.log('Tower Repair Error', result)
+      } else { break }
+    }
+  }
+}
+
 // ErrorMapper fixes error numbers in screeps console
 export const loop = ErrorMapper.wrapLoop(() => {
-  console.log(`Current game tick is ${Game.time}`);
+  //console.log(`Current game tick is ${Game.time}`);
 
   const Spawn = Game.spawns['Spawn1']
 
@@ -116,27 +163,12 @@ export const loop = ErrorMapper.wrapLoop(() => {
   }
 
   // Create workers
-  const action = ws.counts.pleb < 12 ? makePleb : null
+  const action = ws.counts.pleb < 9 ? makePleb : null
   if (action !== null) action(Spawn)
 
   // Towers
-  const tower = _.find(Game.structures, {structureType: STRUCTURE_TOWER}) as StructureTower
-  if(tower){
-    const structs = tower.room.find(FIND_STRUCTURES, {
-      filter: {structureType: STRUCTURE_ROAD}
-    })
-    for(const name in structs){
-      const s = structs[name]
-      if(s.hits < s.hitsMax){
-        const result = tower.repair(s)
-        if(result === ERR_NOT_ENOUGH_ENERGY){
-          console.log('Tower is low on energy')
-        }else if(result !== 0){
-          console.log('Tower Repair Error', result)
-        } else { break }
-      }
-    }
-  }
+  const towers = _.filter(Game.structures, {structureType: STRUCTURE_TOWER}) as StructureTower[]
+  towers.map(workTower)
 
   // Automatically delete memory of missing creeps
   for (const name in Memory.creeps) {

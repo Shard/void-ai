@@ -1,3 +1,13 @@
+export const log = (o:any) => console.log('log', JSON.stringify(o)) || o
+
+export const taskToIcon = (s: string) =>
+  s === 'mine' ? '⛏️'
+  : s === 'idle' ? '💤'
+  : s === 'repair' ? '🛠️'
+  : s === 'supply' ? '⚡'
+  : s === 'upgrade' ? '👍'
+  : s
+
 import _ from 'lodash'
 
 const names = [
@@ -32,7 +42,3 @@ export const getName = () =>
   names[_.random(0,names.length-1)] +
   ' ' +
   lastNames[_.random(0,lastNames.length-1)]
-
-export enum Role {
-  pleb = 'pleb'
-}

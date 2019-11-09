@@ -9,6 +9,8 @@ interface WorldState {
 }
 
 interface RoomMemory {
+  // Dict<String,String> - Maps mining node ids to storage container ids
+  // mining: {},
   lastMined: string;
 }
 

@@ -5,6 +5,16 @@ export const ROLE_MINER = 'Miner'
 export const ROLE_HAULER = 'Hauler'
 export const ROLE_ALL = [ROLE_PLEB, ROLE_MINER, ROLE_HAULER]
 
+export const T_IDLE = 'IDLE'
+export const T_MINE = 'MINE'
+export const T_WITHDRAW = 'WITHDRAW'
+export const T_PICKUP = 'PICKUP'
+export const T_UPGRADE = 'UPGRADE'
+export const T_TRANSFER = 'TRANSFER'
+export const T_REPAIR = 'REPAIR'
+export const T_RESERVE = 'RESERVE'
+export const T_CLAIM = 'CLAIM'
+export const T_ATTACK = 'ATTACK'
 
 // Utility functions
 
@@ -22,7 +32,7 @@ const getMiningNode = ( room: Room ) => {
 
 // Spawning functions
 export const makePleb = ( spawn: StructureSpawn ) => spawn.spawnCreep(
-  [WORK,WORK,CARRY,MOVE],
+  [WORK,WORK,WORK,CARRY,CARRY,MOVE,MOVE], // remove dis
   'Pleb ' + getName(),
   { memory: {role: ROLE_PLEB, assigned: 'init', task: 'idle'} }
 )
@@ -48,11 +58,14 @@ const assign = (id:string, task:string) => (c:Creep) => {
 }
 const assignIdle = assign('bored', 'idle')
 
+const whereLowEnergyTower = (t:StructureTower) => t.structureType === STRUCTURE_TOWER
+  && t.energy < t.energyCapacity - 200
+
 const assignPleb = (pleb: Creep): Creep => {
   // Get Energy
   if(pleb.carry.energy === 0){
     if(typeof pleb.room.storage !== 'undefined' && pleb.room.storage.store.energy > 100){
-      return assign(pleb.room.storage.id, 'pickup')(pleb)
+      return assign(pleb.room.storage.id, 'withdraw')(pleb)
     } else {
       return assign(getMiningNode(pleb.room).id, 'mine')(pleb)
     }
@@ -70,12 +83,8 @@ const assignPleb = (pleb: Creep): Creep => {
   }
 
   // Supply Tower
-  const whereLowEnergyTower = (t:StructureTower) => t.structureType === STRUCTURE_TOWER
-    && t.energy < t.energyCapacity
   const tower = _.find(Game.structures, whereLowEnergyTower) as StructureTower
-  if(tower && tower.energy < tower.energyCapacity){
-    return assign(tower.id, 'supply')(pleb)
-  }
+  if(tower){ return assign(tower.id, 'supply')(pleb) }
 
   // Try and build a site
   const site = pleb.pos.findClosestByRange(FIND_MY_CONSTRUCTION_SITES)
@@ -98,12 +107,22 @@ const assignMiner = (miner: Creep): Creep => {
 
 const assignHauler = (hauler: Creep): Creep => {
   // Move from containers to storage
-  if(hauler.carry.energy === 0){
+  if(hauler.carry.energy < hauler.carryCapacity / 2){
+    // const dropped = hauler.room.find(FIND_DROPPED_RESOURCES)
+    // if(dropped[0]){ return assign(dropped[0].id, 'pickup')(hauler) }
     const containers = (hauler.room
       .find(FIND_STRUCTURES, { filter: { structureType: STRUCTURE_CONTAINER }}) as StructureStorage[])
       .sort((a,b) => a.store[RESOURCE_ENERGY] < b.store[RESOURCE_ENERGY] ? 1 : -1)
-    return assign(containers[0].id, 'pickup')(hauler)
+    return assign(containers[0].id, 'withdraw')(hauler)
   }
+
+  const tower = _.find(Game.structures, whereLowEnergyTower) as StructureTower
+  if(tower){ return assign(tower.id, 'supply')(hauler) }
+
+  const extension = hauler.pos.findClosestByRange(FIND_MY_STRUCTURES, {
+    filter: (s: StructureExtension) => s.structureType === STRUCTURE_EXTENSION && s.store.getFreeCapacity(RESOURCE_ENERGY) !== 0
+  }) as StructureExtension | null
+  if(extension){ return assign(extension.id, 'supply')(hauler) }
 
   const store = hauler.room.storage
   if(typeof store !== 'undefined'){
@@ -124,7 +143,7 @@ const workPleb = ( creep: Creep ) => {
   // Carry out work
   const full = pleb.carry.energy >= pleb.carryCapacity
   switch(pleb.memory.task){
-    case 'pickup':
+    case 'withdraw':
       const con = Game.getObjectById(pleb.memory.assigned) as StructureTower
       if(pleb.carry.energy >= pleb.carryCapacity){ return workPleb(assignIdle(pleb)) }
       pleb.moveTo(con)
@@ -196,15 +215,17 @@ const workHauler = ( c: Creep ) => {
 
   const full = hauler.carry.energy >= hauler.carryCapacity
   switch(hauler.memory.task){
-    case 'pickup':
-      const source = Game.getObjectById(hauler.memory.assigned) as StructureTower
+    case 'withdraw':
+      const source = Game.getObjectById(hauler.memory.assigned) as StructureContainer | StructureStorage
       if(hauler.carry.energy >= hauler.carryCapacity){ return workHauler(assignIdle(hauler)) }
       hauler.moveTo(source)
       hauler.withdraw(source, RESOURCE_ENERGY)
       break;
     case 'supply':
-      const dest = Game.getObjectById(hauler.memory.assigned) as StructureTower
-      if(hauler.carry.energy === 0){ return workHauler(assignIdle(hauler)) }
+      const dest = Game.getObjectById(hauler.memory.assigned) as StructureExtension | StructureTower
+      if(hauler.carry.energy === 0 || dest.store.getFreeCapacity(RESOURCE_ENERGY) === 0){
+        return assignIdle(hauler)
+      }
       hauler.moveTo(dest)
       hauler.transfer(dest, RESOURCE_ENERGY)
   }

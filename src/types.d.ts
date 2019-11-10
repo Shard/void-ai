@@ -2,6 +2,7 @@ interface CreepMemory {
   role: string;
   assigned: string;
   task: string;
+  payload?: any;
 }
 
 interface WorldState {

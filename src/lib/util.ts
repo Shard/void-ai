@@ -1,4 +1,4 @@
-export const log = (o:any) => console.log('log', JSON.stringify(o)) || o
+export const log = (label:string, o:any) => console.log(label, JSON.stringify(o)) || o
 
 export const taskToIcon = (s: string) =>
   s === 'mine' ? '⛏️'

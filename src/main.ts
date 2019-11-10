@@ -1,14 +1,14 @@
-import _ from 'lodash'
 import {
-  ROLE_ALL,
-  makePleb,
-  makeMiner,
   makeHauler,
+  makeMiner,
+  makePleb,
   makeUpgrader,
+  ROLE_ALL,
   workCreep,
   workTower
 } from 'lib/creeps'
 import { log } from 'lib/util'
+import _ from 'lodash'
 import { ErrorMapper } from "utils/ErrorMapper"
 
 console.log('New script loaded')

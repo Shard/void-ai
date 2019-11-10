@@ -90,6 +90,8 @@ const assign = (id:string, task:TASK) => (c:Creep) => {
 }
 const assignIdle = assign(T_IDLE, T_IDLE)
 
+const reAssign = (c:Creep) => workCreep(assignCreep(assignIdle(c)))
+
 const whereLowEnergyTower = (t:StructureTower) => t.structureType === STRUCTURE_TOWER
   && t.energy < t.energyCapacity - 200
 
@@ -184,13 +186,13 @@ const assignUpgrader = (u: Creep) => {
 
 const taskWithdraw = (c:Creep) => {
   const subject = Game.getObjectById(c.memory.assigned) as StructureContainer | StructureStorage
-  if(c.carry.energy >= c.carryCapacity){ return workCreep(assignIdle(c)) }
+  if(c.carry.energy >= c.carryCapacity){ return reAssign(c) }
   return c.withdraw(subject, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE ? c.moveTo(subject) ? c : c : c
 }
 
 const taskBuild = (c:Creep) => {
   const site = Game.getObjectById(c.memory.assigned) as ConstructionSite
-  if(c.carry.energy === 0 || !site){ return workCreep(assignIdle(c)) }
+  if(c.carry.energy === 0 || !site){ return reAssign(c) }
   return c.build(site) === ERR_NOT_IN_RANGE ? c.moveTo(site) ? c : c : c
 }
 
@@ -205,7 +207,7 @@ const taskUpgrade = (c:Creep) => {
 
 const taskRepair = (c:Creep) => {
   const wall = Game.getObjectById(c.memory.assigned) as StructureWall
-  if(wall.hits >= wall.hitsMax || c.carry.energy === 0){ return workCreep(assignIdle(c)) }
+  if(wall.hits >= wall.hitsMax || c.carry.energy === 0){ return reAssign(c) }
   c.moveTo(wall)
   c.repair(wall)
   return c
@@ -213,7 +215,7 @@ const taskRepair = (c:Creep) => {
 
 const taskTransfer = (c:Creep) => {
   const dest = Game.getObjectById(c.memory.assigned) as StructureTower | StructureExtension
-  if(dest.energy >= dest.energyCapacity || c.carry.energy === 0){ return workCreep(assignIdle(c)) }
+  if(dest.energy >= dest.energyCapacity || c.carry.energy === 0){ return reAssign(c) }
   // dest.store.getFreeCapacity(RESOURCE_ENERGY) === 0
   c.moveTo(dest)
   c.transfer(dest, RESOURCE_ENERGY)
@@ -221,58 +223,41 @@ const taskTransfer = (c:Creep) => {
 }
 
 const taskMine = (c:Creep) => {
-  if(c.carry.energy >= c.carryCapacity) { return workCreep(assignIdle(c)) }
+  if(c.carry.energy >= c.carryCapacity) { return reAssign(c) }
   const source = Game.getObjectById(c.memory.assigned) as Source
   c.moveTo(source)
   c.harvest(source)
   return c
 }
 
-
 /**
  * Worker definitions
  *
  */
-const workPleb = ( c: Creep ) => {
-  const pleb = isIdle(c) ? assignPleb(c) : c
-  switch(pleb.memory.task as TASK){
-    case T_WITHDRAW: return taskWithdraw(pleb)
-    case T_MINE: return taskMine(pleb)
-    case T_BUILD: return taskBuild(pleb)
-    case T_UPGRADE: return taskUpgrade(pleb)
-    case T_TRANSFER: return taskTransfer(pleb)
-    case T_REPAIR: return taskRepair(pleb)
-    default: return assignIdle(log('Cannot find pleb task', pleb))
+
+export const assignCreep = (c: Creep): Creep => {
+  switch(c.memory.role){
+    case ROLE_PLEB: return isIdle(c) ? assignPleb(c) : c
+    case ROLE_MINER: return isIdle(c) ? assignMiner(c) : c
+    case ROLE_HAULER: return isIdle(c) ? assignHauler(c) : c
+    case ROLE_UPGRADER: return isIdle(c) ? assignUpgrader(c) : c
+    default: log('Missing Worker: ', c.name); return c
   }
 }
 
-const workUpgrader = ( c: Creep ) => {
-  const u = isIdle(c) ? assignUpgrader(c) : c
-  switch(u.memory.task){
-    case T_WITHDRAW: return taskWithdraw(u)
-    case T_UPGRADE: return taskUpgrade(u)
-    default: return assignIdle(log('Cannot find upgrader task', u))
-  }
-
-}
-
-const workMiner = ( c: Creep ) => {
-  const m = isIdle(c) ? assignMiner(c) : c
-  switch(m.memory.task){
-    case T_MINE: return taskMine(m)
-    case T_TRANSFER: return taskTransfer(m)
-    default: return assignIdle(log('No task for miner', m))
+export const workCreep = (c:Creep) => {
+  switch(c.memory.task as TASK){
+    case T_WITHDRAW: return taskWithdraw(c)
+    case T_MINE: return taskMine(c)
+    case T_BUILD: return taskBuild(c)
+    case T_UPGRADE: return taskUpgrade(c)
+    case T_TRANSFER: return taskTransfer(c)
+    case T_REPAIR: return taskRepair(c)
+    default: return assignIdle(log('Cannot find task', c))
   }
 }
 
-const workHauler = ( c: Creep ) => {
-  const h = isIdle(c) ? assignHauler(c) : c
-  switch(h.memory.task){
-    case T_WITHDRAW: return taskWithdraw(h)
-    case T_TRANSFER: return taskTransfer(h)
-    default: return assignIdle(log('No task for Hauler',  h))
-  }
-}
+// Tower
 
 export const workTower = ( t: StructureTower ) => {
   const enemies = t.room.find(FIND_CREEPS, {
@@ -296,15 +281,5 @@ export const workTower = ( t: StructureTower ) => {
         console.log('Tower Repair Error', result)
       } else { break }
     }
-  }
-}
-
-export const workCreep = (c: Creep): Creep => {
-  switch(c.memory.role){
-    case ROLE_PLEB: return workPleb(c)
-    case ROLE_MINER: return workMiner(c)
-    case ROLE_HAULER: return workHauler(c)
-    case ROLE_UPGRADER: return workUpgrader(c)
-    default: log('Missing Worker: ', c.name); return c
   }
 }

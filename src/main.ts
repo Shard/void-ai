@@ -4,6 +4,7 @@ import {
   makePleb,
   makeUpgrader,
   ROLE_ALL,
+  assignCreep,
   workCreep,
   workTower
 } from 'lib/creeps'
@@ -35,7 +36,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
   for(const name in Game.creeps){
     const creep = Game.creeps[name]
     ws.counts[creep.memory.role]++
-    workCreep(creep)
+    workCreep(assignCreep(creep))
   }
 
   // Create workers

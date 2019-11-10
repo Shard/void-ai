@@ -1,4 +1,4 @@
-import { getName, taskToIcon, log } from './util'
+import { getName, log } from './util'
 
 export const ROLE_PLEB = 'Pleb'
 export const ROLE_MINER = 'Miner'
@@ -7,6 +7,7 @@ export const ROLE_UPGRADER = 'Upgrader'
 export const ROLE_ALL = [ROLE_PLEB, ROLE_MINER, ROLE_HAULER, ROLE_UPGRADER]
 
 export const T_IDLE = 'IDLE'
+export const T_BUILD = 'BUILD'
 export const T_MINE = 'MINE'
 export const T_WITHDRAW = 'WITHDRAW'
 export const T_PICKUP = 'PICKUP'
@@ -18,10 +19,26 @@ export const T_CLAIM = 'CLAIM'
 export const T_ATTACK = 'ATTACK'
 export const T_RECYCLE = 'RECYCLE'
 export type TASK = 'IDLE' | 'MINE' | 'WITHDRAW'
-  | 'PICKUP' | 'TRANSFER' | 'REPAIR' | 'RESERVE'
-  | 'CLAIM' | 'ATTACK' | 'RECYCLE'
+  | 'PICKUP' | 'UPGRADE' | 'TRANSFER' | 'REPAIR'
+  | 'RESERVE' | 'CLAIM' | 'ATTACK' | 'RECYCLE' | 'BUILD'
 
 // Utility functions
+
+const taskToIcon = (t: TASK) => {
+  switch(t){
+    case T_WITHDRAW: return '💰'
+    case T_MINE: return '⛏️'
+    case T_IDLE: return '💤'
+    case T_REPAIR: return '🛠️'
+    case T_TRANSFER: return '📦'
+    case T_UPGRADE: return '👍'
+    case T_ATTACK: return '⚔️'
+    case T_RESERVE: return '🚀'
+    case T_CLAIM: return '⛳'
+    case T_RECYCLE: return '♻️'
+    default: return t
+  }
+}
 
 // Return a mining node using round robin with room memory
 const getMiningNode = ( room: Room ) => {
@@ -47,7 +64,7 @@ export const makePleb = ( spawn: StructureSpawn ) => spawn.spawnCreep(
 export const makeMiner = ( spawn: StructureSpawn ) => spawn.spawnCreep(
   [WORK,WORK,WORK,WORK,WORK,WORK,CARRY,CARRY,MOVE,MOVE],
   'Miner ' + getName(),
-  { memory: {role: ROLE_MINER, assigned: T_IDLE, task: T_IDLE, payload: { node: getMiningNode(spawn.room) }} }
+  { memory: {role: ROLE_MINER, assigned: T_IDLE, task: T_IDLE, payload: { node: getMiningNode(spawn.room).id }} }
 )
 
 export const makeHauler = ( spawn: StructureSpawn ) => spawn.spawnCreep(
@@ -65,13 +82,13 @@ export const makeUpgrader = ( spawn: StructureSpawn ) => spawn.spawnCreep(
 ////////////////
 // Assignment //
 ////////////////
-const assign = (id:string, task:string) => (c:Creep) => {
+const assign = (id:string, task:TASK) => (c:Creep) => {
   c.memory.assigned = id
   c.memory.task = task
-  c.say(taskToIcon(c.memory.task))
+  c.say(taskToIcon(c.memory.task as TASK))
   return c
 }
-const assignIdle = assign('bored', 'idle')
+const assignIdle = assign(T_IDLE, T_IDLE)
 
 const whereLowEnergyTower = (t:StructureTower) => t.structureType === STRUCTURE_TOWER
   && t.energy < t.energyCapacity - 200
@@ -80,40 +97,40 @@ const assignPleb = (pleb: Creep): Creep => {
   // Get Energy
   if(pleb.carry.energy === 0){
     if(typeof pleb.room.storage !== 'undefined' && pleb.room.storage.store.energy > 100){
-      return assign(pleb.room.storage.id, 'withdraw')(pleb)
+      return assign(pleb.room.storage.id, T_WITHDRAW)(pleb)
     } else {
-      return assign(getMiningNode(pleb.room).id, 'mine')(pleb)
+      return assign(getMiningNode(pleb.room).id, T_MINE)(pleb)
     }
   }
 
   // Check if controller is below lvl 3 or decaying
   if(pleb.room.controller && pleb.room.controller.ticksToDowngrade < 35000){
-    return assign(pleb.room.controller.id, 'upgrade')(pleb)
+    return assign(pleb.room.controller.id, T_UPGRADE)(pleb)
   }
 
   // Supply Extensions
   const extension = pleb.pos.findClosestByRange(FIND_STRUCTURES, {
     filter: (s: StructureExtension) => s.structureType === STRUCTURE_EXTENSION && s.energyCapacity > s.energy
   })
-  if(extension){ return assign(extension.id, 'supply')(pleb) }
+  if(extension){ return assign(extension.id, T_TRANSFER)(pleb) }
 
   // Supply Tower
   const tower = _.find(Game.structures, whereLowEnergyTower) as StructureTower
-  if(tower){ return assign(tower.id, 'supply')(pleb) }
+  if(tower){ return assign(tower.id, T_TRANSFER)(pleb) }
 
   // Try and build a site
   const site = pleb.pos.findClosestByRange(FIND_MY_CONSTRUCTION_SITES)
-  if(site){ return assign(site.id, 'build')(pleb) }
+  if(site){ return assign(site.id, T_BUILD)(pleb) }
 
   // Repair Walls
   const wall = pleb.room.find(FIND_STRUCTURES, {
     filter: s => s.structureType === STRUCTURE_WALL && s.hits < 400000
   })
-  if(wall[0]){ return assign(wall[0].id, 'repair')(pleb) }
+  if(wall[0]){ return assign(wall[0].id, T_REPAIR)(pleb) }
 
   // All else upgrade controller
   if(typeof pleb.room.controller === 'undefined'){ return pleb; }
-  return assign(pleb.room.controller.id, 'upgrade')(pleb)
+  return assign(pleb.room.controller.id, T_UPGRADE)(pleb)
 }
 
 const assignMiner = (c: Creep): Creep => {
@@ -132,29 +149,29 @@ const assignHauler = (hauler: Creep): Creep => {
     const containers = (hauler.room
       .find(FIND_STRUCTURES, { filter: { structureType: STRUCTURE_CONTAINER }}) as StructureStorage[])
       .sort((a,b) => a.store[RESOURCE_ENERGY] < b.store[RESOURCE_ENERGY] ? 1 : -1)
-    return assign(containers[0].id, 'withdraw')(hauler)
+    return assign(containers[0].id, T_WITHDRAW)(hauler)
   }
 
   const tower = _.find(Game.structures, whereLowEnergyTower) as StructureTower
-  if(tower){ return assign(tower.id, 'supply')(hauler) }
+  if(tower){ return assign(tower.id, T_TRANSFER)(hauler) }
 
   const extension = hauler.pos.findClosestByRange(FIND_MY_STRUCTURES, {
     filter: (s: StructureExtension) => s.structureType === STRUCTURE_EXTENSION && s.store.getFreeCapacity(RESOURCE_ENERGY) !== 0
   }) as StructureExtension | null
-  if(extension){ return assign(extension.id, 'supply')(hauler) }
+  if(extension){ return assign(extension.id, T_TRANSFER)(hauler) }
 
   const store = hauler.room.storage
   if(typeof store !== 'undefined'){
-    return assign(store.id, 'supply')(hauler)
+    return assign(store.id, T_TRANSFER)(hauler)
   }
   // Supply towers and extensions
   return hauler
 }
 
 const assignUpgrader = (u: Creep) => {
-  if(!u.room.storage || !u.room.controller){ return assign('urself', 'kill')(u) }
-  if(u.carry.energy === 0){ return assign(u.room.storage.id, 'withdraw')(u) }
-  return assign(u.room.controller.id, 'upgrade')(u)
+  if(!u.room.storage || !u.room.controller){ return assign('urself', T_RECYCLE)(u) }
+  if(u.carry.energy === 0){ return assign(u.room.storage.id, T_WITHDRAW)(u) }
+  return assign(u.room.controller.id, T_UPGRADE)(u)
 }
 
 /**
@@ -218,23 +235,23 @@ const taskMine = (c:Creep) => {
  */
 const workPleb = ( c: Creep ) => {
   const pleb = isIdle(c) ? assignPleb(c) : c
-  switch(pleb.memory.task){
-    case 'withdraw': return taskWithdraw(pleb)
-    case 'mine': return taskMine(pleb)
-    case 'build': return taskBuild(pleb)
-    case 'upgrade': return taskUpgrade(pleb)
-    case 'supply': return taskTransfer(pleb)
-    case 'repair': return taskRepair(pleb)
-    default: return log('Cannot find pleb task', pleb)
+  switch(pleb.memory.task as TASK){
+    case T_WITHDRAW: return taskWithdraw(pleb)
+    case T_MINE: return taskMine(pleb)
+    case T_BUILD: return taskBuild(pleb)
+    case T_UPGRADE: return taskUpgrade(pleb)
+    case T_TRANSFER: return taskTransfer(pleb)
+    case T_REPAIR: return taskRepair(pleb)
+    default: return assignIdle(log('Cannot find pleb task', pleb))
   }
 }
 
 const workUpgrader = ( c: Creep ) => {
   const u = isIdle(c) ? assignUpgrader(c) : c
   switch(u.memory.task){
-    case 'withdraw': return taskWithdraw(u)
-    case 'upgrade': return taskUpgrade(u)
-    default: return log('Cannot find upgrader task', u)
+    case T_WITHDRAW: return taskWithdraw(u)
+    case T_UPGRADE: return taskUpgrade(u)
+    default: return assignIdle(log('Cannot find upgrader task', u))
   }
 
 }
@@ -242,18 +259,18 @@ const workUpgrader = ( c: Creep ) => {
 const workMiner = ( c: Creep ) => {
   const m = isIdle(c) ? assignMiner(c) : c
   switch(m.memory.task){
-    case 'mine': return taskMine(m)
-    case 'supply': return taskTransfer(m)
-    default: return log('No task for miner', m)
+    case T_MINE: return taskMine(m)
+    case T_TRANSFER: return taskTransfer(m)
+    default: return assignIdle(log('No task for miner', m))
   }
 }
 
 const workHauler = ( c: Creep ) => {
   const h = isIdle(c) ? assignHauler(c) : c
   switch(h.memory.task){
-    case 'withdraw': return taskWithdraw(h)
-    case 'supply': return taskTransfer(h)
-    default: return log('No task for Hauler',  h)
+    case T_WITHDRAW: return taskWithdraw(h)
+    case T_TRANSFER: return taskTransfer(h)
+    default: return assignIdle(log('No task for Hauler',  h))
   }
 }
 

@@ -1,13 +1,5 @@
 export const log = (label:string, o:any) => console.log(label, JSON.stringify(o)) || o
 
-export const taskToIcon = (s: string) =>
-  s === 'mine' ? '⛏️'
-  : s === 'idle' ? '💤'
-  : s === 'repair' ? '🛠️'
-  : s === 'supply' ? '⚡'
-  : s === 'upgrade' ? '👍'
-  : s
-
 import _ from 'lodash'
 
 const names = [
@@ -23,19 +15,22 @@ const names = [
   'BagofDoom',
   'Moggers',
   'Urist',
-  'Blake',
-  'Tyrone',
   'Duke',
-  'Doot'
+  'Doc',
+  'Brother',
+  'Viper'
 ]
 
 const lastNames = [
   'Hill',
   'Rambo',
-  '',
+  'Harambe',
   'Davic',
   'Goldstien',
-  'Brown'
+  'Doot',
+  'Enoch',
+  'Striker',
+  'Curry'
 ]
 
 export const getName = () =>

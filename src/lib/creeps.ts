@@ -3,7 +3,8 @@ import { getName, taskToIcon, log } from './util'
 export const ROLE_PLEB = 'Pleb'
 export const ROLE_MINER = 'Miner'
 export const ROLE_HAULER = 'Hauler'
-export const ROLE_ALL = [ROLE_PLEB, ROLE_MINER, ROLE_HAULER]
+export const ROLE_UPGRADER = 'Upgrader'
+export const ROLE_ALL = [ROLE_PLEB, ROLE_MINER, ROLE_HAULER, ROLE_UPGRADER]
 
 export const T_IDLE = 'IDLE'
 export const T_MINE = 'MINE'
@@ -45,8 +46,14 @@ export const makeMiner = ( spawn: StructureSpawn ) => spawn.spawnCreep(
 
 export const makeHauler = ( spawn: StructureSpawn ) => spawn.spawnCreep(
   [CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,MOVE,MOVE,MOVE,MOVE,MOVE],
-  'Hauler' + getName(),
+  'Hauler ' + getName(),
   { memory: { role: ROLE_HAULER, assigned: 'init', task: 'idle' } }
+)
+
+export const makeUpgrader = ( spawn: StructureSpawn ) => spawn.spawnCreep(
+  [CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,WORK,WORK,MOVE,MOVE,MOVE,MOVE],
+  'Upgrader ' + getName(),
+  { memory: { role: ROLE_UPGRADER, assigned: 'init', task: 'idle' } }
 )
 
 // Assignment
@@ -132,6 +139,12 @@ const assignHauler = (hauler: Creep): Creep => {
   return hauler
 }
 
+const assignUpgrader = (u: Creep) => {
+  if(!u.room.storage || !u.room.controller){ return assign('urself', 'kill')(u) }
+  if(u.carry.energy === 0){ return assign(u.room.storage.id, 'withdraw')(u) }
+  return assign(u.room.controller.id, 'upgrade')(u)
+}
+
 const workPleb = ( creep: Creep ) => {
 
   let pleb = creep
@@ -182,6 +195,31 @@ const workPleb = ( creep: Creep ) => {
       break;
   }
   return pleb
+
+}
+
+const workUpgrader = ( c: Creep ) => {
+
+  let u = c
+  if(u.memory.assigned === 'idle' || u.memory.task === 'idle'){
+    u = assignUpgrader(u)
+    u.say(taskToIcon(u.memory.task))
+  }
+
+  switch(u.memory.task){
+    case 'withdraw':
+      const con = Game.getObjectById(u.memory.assigned) as StructureTower
+      if(u.carry.energy >= u.carryCapacity){ return workUpgrader(assignIdle(u)) }
+      u.moveTo(con)
+      u.withdraw(con, RESOURCE_ENERGY)
+      break;
+    case 'upgrade':
+      if(u.carry.energy === 0){ return assignIdle(u) }
+      const controller = Game.getObjectById(u.memory.assigned) as StructureController
+      u.moveTo(controller)
+      u.upgradeController(controller)
+      break;
+  }
 
 }
 
@@ -262,6 +300,7 @@ export const workCreep = (c: Creep): Creep => {
     case ROLE_PLEB: return workPleb(c)
     case ROLE_MINER: return workMiner(c)
     case ROLE_HAULER: return workHauler(c)
+    case ROLE_UPGRADER: return workUpgrader(c)
     default: log('Missing Worker: ' + c.name); return c
   }
 }

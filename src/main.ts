@@ -4,6 +4,7 @@ import {
   makePleb,
   makeMiner,
   makeHauler,
+  makeUpgrader,
   workCreep,
   workTower
 } from 'lib/creeps'
@@ -38,15 +39,20 @@ export const loop = ErrorMapper.wrapLoop(() => {
   }
 
   // Create workers
-  const action =
+  let action =
       ws.counts.Pleb < 3 ? makePleb
     : ws.counts.Miner < 2 ? makeMiner
     : ws.counts.Hauler < 1 ? makeHauler
     : null
+  if(!action && Spawn.room.storage && Spawn.room.storage.store.energy > 800000 && ws.counts.Upgrader < 8){
+    action = makeUpgrader
+  }
   if (action !== null){ action(Spawn) }
 
   // Towers
-  const towers = _.filter(Game.structures, {structureType: STRUCTURE_TOWER}) as StructureTower[]
+  const towers = _.filter(Game.structures, {
+    structureType: STRUCTURE_TOWER
+  }) as StructureTower[]
   towers.map(workTower)
 
   // Automatically delete memory of missing creeps

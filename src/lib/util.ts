@@ -37,3 +37,8 @@ export const getName = () =>
   names[_.random(0,names.length-1)] +
   ' ' +
   lastNames[_.random(0,lastNames.length-1)]
+
+export const initDraw = (r:Room) => {
+  let line = 6
+  return (t:string) => r.visual.text(t, 10, line++)
+}

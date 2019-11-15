@@ -1,17 +1,29 @@
-interface CreepMemory {
-  role: string;
-  assigned: string;
-  task: string;
-  payload?: any;
-}
+// Defined in creeps.ts
+type  CreepRole = 'Pleb' | 'Miner' | 'Hauler' | 'Upgrader' | 'Builder' | 'Claimer'
+
+type CreepTask = 'IDLE' | 'MINE' | 'WITHDRAW'
+  | 'PICKUP' | 'UPGRADE' | 'TRANSFER' | 'REPAIR'
+  | 'RESERVE' | 'CLAIM' | 'ATTACK' | 'RECYCLE' | 'BUILD'
+
+type CreepCounts = { [R in CreepRole]: number }
 
 interface WorldState {
-  counts: any
+  counts: CreepCounts
+}
+
+interface CreepMemory {
+  role: CreepRole;
+  task: CreepTask;
+  assigned: string;
+  payload?: any;
 }
 
 interface RoomMemory {
   // Dict<String,String> - Maps mining node ids to storage container ids
   // mining: {},
+  designation?: string;
+  counts: CreepCounts;
+  desiredCreeps: CreepCounts;
   lastMined: string;
 }
 

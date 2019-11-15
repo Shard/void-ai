@@ -1,60 +1,90 @@
 import {
-  makeHauler,
-  makeMiner,
-  makePleb,
-  makeUpgrader,
-  ROLE_ALL,
   assignCreep,
+  makeCreep,
+  ROLE_ALL,
+  ROLE_PLEB,
+  ROLE_MINER,
+  ROLE_HAULER,
+  ROLE_BUILDER,
+  ROLE_UPGRADER,
   workCreep,
   workTower
 } from 'lib/creeps'
-import { log } from 'lib/util'
+import { log, initDraw } from 'lib/util'
 import _ from 'lodash'
 import { ErrorMapper } from "utils/ErrorMapper"
+import { Func } from 'mocha';
 
 console.log('New script loaded')
 
-const planMines = ( r: Room ) => {
-  const sources = r.find(FIND_SOURCES)
-  for(const id in sources){
-    const source = sources[id]
+const initWorldState = () => ROLE_ALL.reduce((a,x) => {a[x] = 0;return a}, {}) as CreepCounts
+
+const getDesiredCounts = (r:Room): CreepCounts => {
+  const counts = initWorldState()
+  if(!r.controller){ return counts }
+  // Bootstraping
+  if(r.controller.level < 4 || r.energyCapacityAvailable < 1000 || !r.storage){
+    counts.Pleb = 6
+  } else {
+    counts.Pleb = 1
+    counts.Miner = r.find(FIND_SOURCES).length
+    counts.Hauler = 1
+    // Determine how to scale builders/upgraders with energy available
+    if(r.find(FIND_CONSTRUCTION_SITES).length){ counts.Builder = 3 }
+    if(r.storage.store.energy > 800000){ counts.Upgrader = 6 }
   }
+  return counts
+}
+// : (StructureSpawn -> ScreepReturnCode)
+const getSpawnerAction = ( s:StructureSpawn ) => {
+  const current = s.room.memory.counts
+  const desired = getDesiredCounts(s.room)
+  const spawnOrder: CreepRole[] = [ROLE_PLEB,ROLE_MINER,ROLE_HAULER,ROLE_BUILDER,ROLE_UPGRADER]
+  for(const r of spawnOrder){
+    if(current[r] < desired[r]){
+      return makeCreep(r as CreepRole)
+    }
+  }
+  return null
 }
 
-// ErrorMapper fixes error numbers in screeps console
 export const loop = ErrorMapper.wrapLoop(() => {
   // console.log(`Current game tick is ${Game.time}`);
 
-  const Spawn = Game.spawns.Spawn1
-
-  // Get WorldState
-  const ws:WorldState = {
-    counts: ROLE_ALL.reduce((a,x) => {a[x] = 0;return a}, {})
+  // Generate Room States
+  for(const name in Game.rooms){
+    const room = Game.rooms[name]
+    room.memory.counts = initWorldState()
+    room.memory.desiredCreeps = getDesiredCounts(room)
   }
 
-  // Creep Role code
+  // Update Room-Creep state and do creep logic
   for(const name in Game.creeps){
     const creep = Game.creeps[name]
-    ws.counts[creep.memory.role]++
+    creep.room.memory.counts[creep.memory.role]++
     workCreep(assignCreep(creep))
   }
 
-  // Create workers
-  let action =
-      ws.counts.Pleb < 3 ? makePleb
-    : ws.counts.Miner < 2 ? makeMiner
-    : ws.counts.Hauler < 1 ? makeHauler
-    : null
-  if(!action && Spawn.room.storage && Spawn.room.storage.store.energy > 800000 && ws.counts.Upgrader < 8){
-    action = makeUpgrader
+  // Spawner Logic
+  for(const name in Game.spawns){
+    const spawner = Game.spawns[name]
+    if(spawner.spawning || !spawner.my){ continue; }
+    const spawnAction = getSpawnerAction(spawner)
+    if(spawnAction){ spawnAction(spawner) }
   }
-  if (action !== null){ action(Spawn) }
 
   // Towers
   const towers = _.filter(Game.structures, {
     structureType: STRUCTURE_TOWER
   }) as StructureTower[]
   towers.map(workTower)
+
+  // Visuals
+  for(const name in Game.rooms){
+    const room = Game.rooms[name]
+    const draw = initDraw(room)
+    ROLE_ALL.map(r => draw(`${r}: ${room.memory.counts[r]}/${room.memory.desiredCreeps[r]}`))
+  }
 
   // Automatically delete memory of missing creeps
   for (const name in Memory.creeps) {

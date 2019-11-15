@@ -4,7 +4,9 @@ export const ROLE_PLEB = 'Pleb'
 export const ROLE_MINER = 'Miner'
 export const ROLE_HAULER = 'Hauler'
 export const ROLE_UPGRADER = 'Upgrader'
-export const ROLE_ALL = [ROLE_PLEB, ROLE_MINER, ROLE_HAULER, ROLE_UPGRADER]
+export const ROLE_BUILDER = 'Builder'
+export const ROLE_CLAIMER = 'Claimer'
+export const ROLE_ALL = [ROLE_PLEB, ROLE_MINER, ROLE_HAULER, ROLE_UPGRADER, ROLE_BUILDER, ROLE_CLAIMER] as CreepRole[]
 
 export const T_IDLE = 'IDLE'
 export const T_BUILD = 'BUILD'
@@ -18,13 +20,11 @@ export const T_RESERVE = 'RESERVE'
 export const T_CLAIM = 'CLAIM'
 export const T_ATTACK = 'ATTACK'
 export const T_RECYCLE = 'RECYCLE'
-export type TASK = 'IDLE' | 'MINE' | 'WITHDRAW'
-  | 'PICKUP' | 'UPGRADE' | 'TRANSFER' | 'REPAIR'
-  | 'RESERVE' | 'CLAIM' | 'ATTACK' | 'RECYCLE' | 'BUILD'
+
 
 // Utility functions
 
-const taskToIcon = (t: TASK) => {
+const taskToIcon = (t: CreepTask) => {
   switch(t){
     case T_WITHDRAW: return '💰'
     case T_MINE: return '⛏️'
@@ -53,6 +53,7 @@ const getMiningNode = ( room: Room ) => {
 }
 
 const isIdle = (c:Creep): Boolean => c.memory.task === T_IDLE || c.memory.assigned === T_IDLE
+const isFull = (c:Creep): Boolean => c.carry.energy === c.carryCapacity
 
 // Spawning functions
 export const makePleb = ( spawn: StructureSpawn ) => spawn.spawnCreep(
@@ -74,18 +75,42 @@ export const makeHauler = ( spawn: StructureSpawn ) => spawn.spawnCreep(
 )
 
 export const makeUpgrader = ( spawn: StructureSpawn ) => spawn.spawnCreep(
-  [CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,WORK,WORK,MOVE,MOVE,MOVE,MOVE],
+  [CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,WORK,WORK,WORK,WORK,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE],
   'Upgrader ' + getName(),
   { memory: { role: ROLE_UPGRADER, assigned: T_IDLE, task: T_IDLE } }
 )
 
+export const makeBuilder = ( spawn: StructureSpawn ) => spawn.spawnCreep(
+  [CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,WORK,WORK,WORK,WORK,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE],
+  'Builder ' + getName(),
+  { memory: { role: ROLE_BUILDER, assigned: T_IDLE, task: T_IDLE } }
+)
+
+export const makeClaimer = ( spawn: StructureSpawn ) => spawn.spawnCreep(
+  [CARRY,CARRY,CARRY,CARRY,CLAIM,MOVE,MOVE,MOVE],
+  'Claimer ' + getName(),
+  { memory: { role: ROLE_CLAIMER, assigned: T_IDLE, task: T_IDLE } }
+)
+
+export const makeCreep = ( role: CreepRole ) => ( spawner: StructureSpawn ) => {
+  switch(role){
+    case ROLE_PLEB: return makePleb(spawner)
+    case ROLE_MINER: return makeMiner(spawner)
+    case ROLE_HAULER: return makeHauler(spawner)
+    case ROLE_UPGRADER: return makeUpgrader(spawner)
+    case ROLE_BUILDER: return makeBuilder(spawner)
+    case ROLE_CLAIMER: return makeClaimer(spawner)
+    default: return ERR_INVALID_ARGS
+  }
+}
+
 ////////////////
 // Assignment //
 ////////////////
-const assign = (id:string, task:TASK) => (c:Creep) => {
+const assign = (id:string, task:CreepTask) => (c:Creep) => {
   c.memory.assigned = id
   c.memory.task = task
-  c.say(taskToIcon(c.memory.task as TASK))
+  c.say(taskToIcon(c.memory.task), true)
   return c
 }
 const assignIdle = assign(T_IDLE, T_IDLE)
@@ -135,9 +160,17 @@ const assignPleb = (pleb: Creep): Creep => {
   return assign(pleb.room.controller.id, T_UPGRADE)(pleb)
 }
 
+const assignBuilder = (c:Creep): Creep => {
+  const site = c.pos.findClosestByRange(FIND_MY_CONSTRUCTION_SITES)
+  if(!c.room.storage || !site){ return assign('urself', T_RECYCLE)(c) }
+  if(c.carry.energy === 0){ return assign(c.room.storage.id, T_WITHDRAW)(c) }
+  return assign(site.id, T_BUILD)(c)
+}
+
 const assignMiner = (c: Creep): Creep => {
   if(c.carry.energy >= c.carryCapacity){
-    const container = c.pos.findClosestByRange(FIND_STRUCTURES, { filter: { structureType: STRUCTURE_CONTAINER } }) as StructureContainer
+    const container = c.pos.findClosestByRange(FIND_STRUCTURES,
+      { filter: { structureType: STRUCTURE_CONTAINER } }) as StructureContainer
     return assign(container.id, T_TRANSFER)(c)
   }
   return assign(c.memory.payload.node, T_MINE)(c)
@@ -236,17 +269,19 @@ const taskMine = (c:Creep) => {
  */
 
 export const assignCreep = (c: Creep): Creep => {
+  if(!isIdle(c)){ return c }
   switch(c.memory.role){
-    case ROLE_PLEB: return isIdle(c) ? assignPleb(c) : c
-    case ROLE_MINER: return isIdle(c) ? assignMiner(c) : c
-    case ROLE_HAULER: return isIdle(c) ? assignHauler(c) : c
-    case ROLE_UPGRADER: return isIdle(c) ? assignUpgrader(c) : c
+    case ROLE_PLEB: return assignPleb(c)
+    case ROLE_MINER: return assignMiner(c)
+    case ROLE_HAULER: return assignHauler(c)
+    case ROLE_UPGRADER: return assignUpgrader(c)
+    case ROLE_BUILDER: return assignBuilder(c)
     default: log('Missing Worker: ', c.name); return c
   }
 }
 
 export const workCreep = (c:Creep) => {
-  switch(c.memory.task as TASK){
+  switch(c.memory.task as CreepTask){
     case T_WITHDRAW: return taskWithdraw(c)
     case T_MINE: return taskMine(c)
     case T_BUILD: return taskBuild(c)
@@ -258,7 +293,6 @@ export const workCreep = (c:Creep) => {
 }
 
 // Tower
-
 export const workTower = ( t: StructureTower ) => {
   const enemies = t.room.find(FIND_CREEPS, {
     filter: { my: false }

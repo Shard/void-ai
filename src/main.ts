@@ -7,13 +7,13 @@ import {
   ROLE_HAULER,
   ROLE_BUILDER,
   ROLE_UPGRADER,
+  ROLE_CLAIMER,
   workCreep,
   workTower
 } from 'lib/creeps'
 import { log, initDraw } from 'lib/util'
 import _ from 'lodash'
 import { ErrorMapper } from "utils/ErrorMapper"
-import { Func } from 'mocha';
 
 console.log('New script loaded')
 
@@ -22,8 +22,9 @@ const initWorldState = () => ROLE_ALL.reduce((a,x) => {a[x] = 0;return a}, {}) a
 const getDesiredCounts = (r:Room): CreepCounts => {
   const counts = initWorldState()
   if(!r.controller){ return counts }
-  // Bootstraping
+
   if(r.controller.level < 4 || r.energyCapacityAvailable < 1000 || !r.storage){
+    // Bootstraping
     counts.Pleb = 6
   } else {
     counts.Pleb = 1
@@ -31,7 +32,13 @@ const getDesiredCounts = (r:Room): CreepCounts => {
     counts.Hauler = 1
     // Determine how to scale builders/upgraders with energy available
     if(r.find(FIND_CONSTRUCTION_SITES).length){ counts.Builder = 3 }
-    if(r.storage.store.energy > 800000){ counts.Upgrader = 6 }
+    if(r.storage.store.energy > 800000){
+      const flag = Game.flags['claim']
+      if(flag){
+        counts.Claimer = 1
+      }
+    }
+    if(r.storage.store.energy > 900000){ counts.Upgrader = 6 }
   }
   return counts
 }
@@ -39,7 +46,7 @@ const getDesiredCounts = (r:Room): CreepCounts => {
 const getSpawnerAction = ( s:StructureSpawn ) => {
   const current = s.room.memory.counts
   const desired = getDesiredCounts(s.room)
-  const spawnOrder: CreepRole[] = [ROLE_PLEB,ROLE_MINER,ROLE_HAULER,ROLE_BUILDER,ROLE_UPGRADER]
+  const spawnOrder: CreepRole[] = [ROLE_PLEB, ROLE_MINER,ROLE_HAULER,ROLE_CLAIMER,ROLE_BUILDER,ROLE_UPGRADER]
   for(const r of spawnOrder){
     if(current[r] < desired[r]){
       return makeCreep(r as CreepRole)

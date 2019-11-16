@@ -1,7 +1,7 @@
 // Defined in creeps.ts
 type  CreepRole = 'Pleb' | 'Miner' | 'Hauler' | 'Upgrader' | 'Builder' | 'Claimer'
 
-type CreepTask = 'IDLE' | 'MINE' | 'WITHDRAW'
+type CreepTask = 'IDLE' | 'MINE' | 'WITHDRAW' | 'MOVE'
   | 'PICKUP' | 'UPGRADE' | 'TRANSFER' | 'REPAIR'
   | 'RESERVE' | 'CLAIM' | 'ATTACK' | 'RECYCLE' | 'BUILD'
 

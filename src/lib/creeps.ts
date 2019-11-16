@@ -1,4 +1,5 @@
 import { getName, log } from './util'
+import { Position } from 'source-map/source-map';
 
 export const ROLE_PLEB = 'Pleb'
 export const ROLE_MINER = 'Miner'
@@ -20,10 +21,9 @@ export const T_RESERVE = 'RESERVE'
 export const T_CLAIM = 'CLAIM'
 export const T_ATTACK = 'ATTACK'
 export const T_RECYCLE = 'RECYCLE'
-
+export const T_MOVE = 'MOVE'
 
 // Utility functions
-
 const taskToIcon = (t: CreepTask) => {
   switch(t){
     case T_WITHDRAW: return '💰'
@@ -87,9 +87,17 @@ export const makeBuilder = ( spawn: StructureSpawn ) => spawn.spawnCreep(
 )
 
 export const makeClaimer = ( spawn: StructureSpawn ) => spawn.spawnCreep(
-  [CARRY,CARRY,CARRY,CARRY,CLAIM,MOVE,MOVE,MOVE],
+  [CLAIM,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE],
   'Claimer ' + getName(),
-  { memory: { role: ROLE_CLAIMER, assigned: T_IDLE, task: T_IDLE } }
+  { memory: {
+    assigned: spawn.room.name, // Home room
+    role: ROLE_CLAIMER,
+    task: T_IDLE,
+    payload: {
+      flagPos: Game.flags.claim.pos, //  Rally flag
+      home: spawn.room.name
+    }
+  } }
 )
 
 export const makeCreep = ( role: CreepRole ) => ( spawner: StructureSpawn ) => {
@@ -209,6 +217,16 @@ const assignUpgrader = (u: Creep) => {
   return assign(u.room.controller.id, T_UPGRADE)(u)
 }
 
+const assignClaimer = (c: Creep) => {
+  const flagPos = c.memory.payload.flagPos as RoomPosition
+  if(flagPos.roomName === c.room.name){
+    if(!c.room.controller){ console.log('ERROR: No controller to upgrade'); return c }
+    return assign(c.room.controller.id, T_CLAIM)(c)
+  } else {
+    return assign(c.memory.assigned, T_MOVE)(c)
+  }
+}
+
 /**
  * Task Definitions
  *
@@ -219,7 +237,7 @@ const assignUpgrader = (u: Creep) => {
 
 const taskWithdraw = (c:Creep) => {
   const subject = Game.getObjectById(c.memory.assigned) as StructureContainer | StructureStorage
-  if(c.carry.energy >= c.carryCapacity){ return reAssign(c) }
+  if(c.carry.energy >= c.carryCapacity / 2){ return reAssign(c) }
   return c.withdraw(subject, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE ? c.moveTo(subject) ? c : c : c
 }
 
@@ -263,6 +281,29 @@ const taskMine = (c:Creep) => {
   return c
 }
 
+const taskMove = (c:Creep) => {
+  const flag = c.memory.payload.flagPos
+  const target = new RoomPosition(flag.x, flag.y, flag.roomName)
+  if(c.room.name === target.roomName){ return reAssign(c) }
+  c.moveTo(target)
+  return c
+}
+
+const taskClaim = (c:Creep) => {
+  if(c.carry.energy === 0){ return reAssign(c) }
+  if(!c.room.controller){ console.log('no controller');return c }
+  if(c.room.controller.my){ return assign('urself', T_RECYCLE)(c) }
+  const target = c.room.controller.pos
+  c.moveTo(target)
+  c.claimController(c.room.controller)
+  return c
+}
+
+const taskRecycle = (c:Creep) => {
+  c.suicide()
+  return c
+}
+
 /**
  * Worker definitions
  *
@@ -276,6 +317,7 @@ export const assignCreep = (c: Creep): Creep => {
     case ROLE_HAULER: return assignHauler(c)
     case ROLE_UPGRADER: return assignUpgrader(c)
     case ROLE_BUILDER: return assignBuilder(c)
+    case ROLE_CLAIMER: return assignClaimer(c)
     default: log('Missing Worker: ', c.name); return c
   }
 }
@@ -288,8 +330,12 @@ export const workCreep = (c:Creep) => {
     case T_UPGRADE: return taskUpgrade(c)
     case T_TRANSFER: return taskTransfer(c)
     case T_REPAIR: return taskRepair(c)
-    default: return assignIdle(log('Cannot find task', c))
+    case T_MOVE: return taskMove(c)
+    case T_CLAIM: return taskClaim(c)
+    case T_RECYCLE: return taskRecycle(c)
+    default: log('Cannot find task', c.memory.task)
   }
+  return c
 }
 
 // Tower

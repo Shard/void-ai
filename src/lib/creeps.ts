@@ -57,7 +57,7 @@ const isFull = (c:Creep): Boolean => c.carry.energy === c.carryCapacity
 
 // Spawning functions
 export const makePleb = ( spawn: StructureSpawn ) => spawn.spawnCreep(
-  [WORK,WORK,WORK,CARRY,CARRY,MOVE,MOVE], // remove dis
+  [WORK,WORK,WORK,CARRY,CARRY,MOVE,MOVE,MOVE], // remove dis
   'Pleb ' + getName(),
   { memory: {role: ROLE_PLEB, assigned: T_IDLE, task: T_IDLE} }
 )
@@ -169,10 +169,15 @@ const assignPleb = (pleb: Creep): Creep => {
 }
 
 const assignBuilder = (c:Creep): Creep => {
-  const site = c.pos.findClosestByRange(FIND_MY_CONSTRUCTION_SITES)
-  if(!c.room.storage || !site){ return assign('urself', T_RECYCLE)(c) }
+  if(!c.room.storage){ return assign('urself', T_RECYCLE)(c) }
   if(c.carry.energy === 0){ return assign(c.room.storage.id, T_WITHDRAW)(c) }
-  return assign(site.id, T_BUILD)(c)
+  const site = c.pos.findClosestByRange(FIND_MY_CONSTRUCTION_SITES)
+  if(site){ return assign(site.id, T_BUILD)(c) }
+  const repair = c.pos.findClosestByRange(FIND_STRUCTURES, {
+    filter: s => s.structureType === STRUCTURE_WALL && s.hits < 500000
+  })
+  if(repair){ return assign(repair.id, T_REPAIR)(c) }
+  return assign('urself', T_RECYCLE)(c)
 }
 
 const assignMiner = (c: Creep): Creep => {
@@ -345,21 +350,22 @@ export const workTower = ( t: StructureTower ) => {
   })
   if(enemies[0]){
     t.attack(enemies[0])
-    return;
+    return t;
   }
 
-  const structs = t.room.find(FIND_STRUCTURES, {
-    filter: s => ([STRUCTURE_CONTAINER,STRUCTURE_ROAD] as any).includes(s.structureType)
+  const structure = t.pos.findClosestByRange(FIND_STRUCTURES, {
+    filter: s =>
+      ([STRUCTURE_CONTAINER,STRUCTURE_ROAD,STRUCTURE_RAMPART,STRUCTURE_WALL] as any).includes(s.structureType)
+      && s.hits < s.hitsMax
+      && s.hits < 10000
   })
-  for(const name in structs){
-    const s = structs[name]
-    if(s.hits < s.hitsMax){
-      const result = t.repair(s)
-      if(result === ERR_NOT_ENOUGH_ENERGY){
-        // console.log('Tower is low on energy')
-      }else if(result !== 0){
-        console.log('Tower Repair Error', result)
-      } else { break }
-    }
+  if(!structure){ return t; }
+  const result = t.repair(structure)
+  if(result === ERR_NOT_ENOUGH_ENERGY){
+    console.log('Tower is low on energy')
+  }else if(result !== 0){
+    console.log('Tower Repair Error', result)
   }
+  return t
+
 }

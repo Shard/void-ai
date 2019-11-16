@@ -90,7 +90,11 @@ export const loop = ErrorMapper.wrapLoop(() => {
   for(const name in Game.rooms){
     const room = Game.rooms[name]
     const draw = initDraw(room)
+    draw(`Room Type: ${room.memory.designation}`)
+    draw(`Spawner Energy: ${room.energyAvailable}/${room.energyCapacityAvailable}`)
     ROLE_ALL.map(r => draw(`${r}: ${room.memory.counts[r]}/${room.memory.desiredCreeps[r]}`))
+    draw('')
+    draw(`CPU: ${Math.floor(Game.cpu.getUsed())}/${Game.cpu.tickLimit}`)
   }
 
   // Automatically delete memory of missing creeps

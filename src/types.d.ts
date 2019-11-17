@@ -1,7 +1,7 @@
 // Defined in creeps.ts
 type  CreepRole = 'Pleb' | 'Miner' | 'Hauler' | 'Upgrader' | 'Builder' | 'Claimer'
 
-type CreepTask = 'IDLE' | 'MINE' | 'WITHDRAW' | 'MOVE'
+type CreepTask = 'IDLE' | 'MINE' | 'WITHDRAW' | 'TRAVEL'
   | 'PICKUP' | 'UPGRADE' | 'TRANSFER' | 'REPAIR'
   | 'RESERVE' | 'CLAIM' | 'ATTACK' | 'RECYCLE' | 'BUILD'
 
@@ -14,7 +14,11 @@ interface WorldState {
 interface CreepMemory {
   role: CreepRole;
   task: CreepTask;
+  // Usually an ID for a game object that directly related to the task
   assigned: string;
+  // The room name that represents the assigned room of the creep
+  home: string;
+  // Extra data for role/task specific data
   payload?: any;
 }
 

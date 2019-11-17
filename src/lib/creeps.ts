@@ -21,7 +21,7 @@ export const T_RESERVE = 'RESERVE'
 export const T_CLAIM = 'CLAIM'
 export const T_ATTACK = 'ATTACK'
 export const T_RECYCLE = 'RECYCLE'
-export const T_MOVE = 'MOVE'
+export const T_TRAVEL = 'TRAVEL'
 
 // Utility functions
 const taskToIcon = (t: CreepTask) => {
@@ -43,6 +43,7 @@ const taskToIcon = (t: CreepTask) => {
 // Return a mining node using round robin with room memory
 const getMiningNode = ( room: Room ) => {
   const nodes = room.find(FIND_SOURCES)
+  if(nodes.length === 1){ return nodes[0] }
   let found = false
   for(const i in nodes){
     if(nodes[i].id === room.memory.lastMined){ found = true;continue; }
@@ -55,42 +56,48 @@ const getMiningNode = ( room: Room ) => {
 const isIdle = (c:Creep): Boolean => c.memory.task === T_IDLE || c.memory.assigned === T_IDLE
 const isFull = (c:Creep): Boolean => c.carry.energy === c.carryCapacity
 
+const initMemory = (role: CreepRole, room: Room) => {
+  const mem = {role, assigned: T_IDLE, task: T_IDLE, home: room.name} as CreepMemory
+  return (obj:any): CreepMemory => ({...mem, ...obj}) as CreepMemory
+}
+
 // Spawning functions
-export const makePleb = ( spawn: StructureSpawn ) => spawn.spawnCreep(
-  [WORK,WORK,WORK,CARRY,CARRY,MOVE,MOVE,MOVE], // remove dis
+export const makePleb = ( spawn: StructureSpawn, room :Room ) => spawn.spawnCreep(
+  [WORK,WORK,WORK,CARRY,CARRY,MOVE,MOVE,MOVE],
   'Pleb ' + getName(),
-  { memory: {role: ROLE_PLEB, assigned: T_IDLE, task: T_IDLE} }
+  { memory: initMemory(ROLE_PLEB, room)({}) }
 )
 
-export const makeMiner = ( spawn: StructureSpawn ) => spawn.spawnCreep(
+export const makeMiner = ( spawn: StructureSpawn, room: Room ) => spawn.spawnCreep(
   [WORK,WORK,WORK,WORK,WORK,WORK,CARRY,CARRY,MOVE,MOVE],
   'Miner ' + getName(),
-  { memory: {role: ROLE_MINER, assigned: T_IDLE, task: T_IDLE, payload: { node: getMiningNode(spawn.room).id }} }
+  { memory: initMemory(ROLE_MINER, room)({ payload: {node: getMiningNode(spawn.room).id }}) }
 )
 
-export const makeHauler = ( spawn: StructureSpawn ) => spawn.spawnCreep(
+export const makeHauler = ( spawn: StructureSpawn, room: Room ) => spawn.spawnCreep(
   [CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,MOVE,MOVE,MOVE,MOVE,MOVE],
   'Hauler ' + getName(),
-  { memory: { role: ROLE_HAULER, assigned: T_IDLE, task: T_IDLE } }
+  { memory: initMemory(ROLE_HAULER, room)({}) }
 )
 
-export const makeUpgrader = ( spawn: StructureSpawn ) => spawn.spawnCreep(
+export const makeUpgrader = ( spawn: StructureSpawn, room: Room ) => spawn.spawnCreep(
   [CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,WORK,WORK,WORK,WORK,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE],
   'Upgrader ' + getName(),
-  { memory: { role: ROLE_UPGRADER, assigned: T_IDLE, task: T_IDLE } }
+  { memory: initMemory(ROLE_UPGRADER, room)({}) }
 )
 
-export const makeBuilder = ( spawn: StructureSpawn ) => spawn.spawnCreep(
+export const makeBuilder = ( spawn: StructureSpawn, room: Room ) => spawn.spawnCreep(
   [CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,CARRY,WORK,WORK,WORK,WORK,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE],
   'Builder ' + getName(),
-  { memory: { role: ROLE_BUILDER, assigned: T_IDLE, task: T_IDLE } }
+  { memory: initMemory(ROLE_BUILDER, room)({}) }
 )
 
-export const makeClaimer = ( spawn: StructureSpawn ) => spawn.spawnCreep(
+export const makeClaimer = ( spawn: StructureSpawn, room: Room ) => spawn.spawnCreep(
   [CLAIM,MOVE,MOVE,MOVE,MOVE,MOVE,MOVE],
   'Claimer ' + getName(),
   { memory: {
-    assigned: spawn.room.name, // Home room
+    assigned: room.name, // Home room, move into home prop
+    home: room.name,
     role: ROLE_CLAIMER,
     task: T_IDLE,
     payload: {
@@ -100,14 +107,15 @@ export const makeClaimer = ( spawn: StructureSpawn ) => spawn.spawnCreep(
   } }
 )
 
-export const makeCreep = ( role: CreepRole ) => ( spawner: StructureSpawn ) => {
+export const makeCreep = ( role: CreepRole, room: Room | null = null ) => ( spawner: StructureSpawn ) => {
+  if(room === null){ room = spawner.room }
   switch(role){
-    case ROLE_PLEB: return makePleb(spawner)
-    case ROLE_MINER: return makeMiner(spawner)
-    case ROLE_HAULER: return makeHauler(spawner)
-    case ROLE_UPGRADER: return makeUpgrader(spawner)
-    case ROLE_BUILDER: return makeBuilder(spawner)
-    case ROLE_CLAIMER: return makeClaimer(spawner)
+    case ROLE_PLEB: return makePleb(spawner, room)
+    case ROLE_MINER: return makeMiner(spawner, room)
+    case ROLE_HAULER: return makeHauler(spawner, room)
+    case ROLE_UPGRADER: return makeUpgrader(spawner, room)
+    case ROLE_BUILDER: return makeBuilder(spawner, room)
+    case ROLE_CLAIMER: return makeClaimer(spawner, room)
     default: return ERR_INVALID_ARGS
   }
 }
@@ -129,6 +137,9 @@ const whereLowEnergyTower = (t:StructureTower) => t.structureType === STRUCTURE_
   && t.energy < t.energyCapacity - 200
 
 const assignPleb = (pleb: Creep): Creep => {
+  if(pleb.room.name !== pleb.memory.home){
+    return assign(pleb.memory.home, T_TRAVEL)(pleb)
+  }
   // Get Energy
   if(pleb.carry.energy === 0){
     if(typeof pleb.room.storage !== 'undefined' && pleb.room.storage.store.energy > 100){
@@ -139,18 +150,22 @@ const assignPleb = (pleb: Creep): Creep => {
   }
 
   // Check if controller is below lvl 3 or decaying
-  if(pleb.room.controller && pleb.room.controller.ticksToDowngrade < 35000){
+  if(pleb.room.controller && pleb.room.controller.ticksToDowngrade < 5000){
     return assign(pleb.room.controller.id, T_UPGRADE)(pleb)
   }
 
   // Supply Extensions
-  const extension = pleb.pos.findClosestByRange(FIND_STRUCTURES, {
-    filter: (s: StructureExtension) => s.structureType === STRUCTURE_EXTENSION && s.energyCapacity > s.energy
-  })
+  const extension = pleb.pos.findClosestByRange(pleb.room.find(FIND_STRUCTURES, {
+    filter: (s: StructureExtension) =>
+      s.structureType === STRUCTURE_EXTENSION
+      && s.energyCapacity > s.energy
+      && s.room.name === pleb.room.name
+  }))
   if(extension){ return assign(extension.id, T_TRANSFER)(pleb) }
 
   // Supply Tower
-  const tower = _.find(Game.structures, whereLowEnergyTower) as StructureTower
+  const tower = pleb.pos.findClosestByRange(pleb.room.find(FIND_STRUCTURES,{filter: whereLowEnergyTower}))
+  // const tower = _.find(Game.structures, whereLowEnergyTower) as StructureTower
   if(tower){ return assign(tower.id, T_TRANSFER)(pleb) }
 
   // Try and build a site
@@ -184,12 +199,14 @@ const assignMiner = (c: Creep): Creep => {
   if(c.carry.energy >= c.carryCapacity){
     const container = c.pos.findClosestByRange(FIND_STRUCTURES,
       { filter: { structureType: STRUCTURE_CONTAINER } }) as StructureContainer
+    if(!container && c.room.storage){ return assign(c.room.storage.id, T_TRANSFER)(c) }
     return assign(container.id, T_TRANSFER)(c)
   }
   return assign(c.memory.payload.node, T_MINE)(c)
 }
 
 const assignHauler = (hauler: Creep): Creep => {
+  if(!hauler.room.storage){ return assign('urlself', T_RECYCLE)(hauler) }
   // Move from containers to storage
   if(hauler.carry.energy < hauler.carryCapacity / 2){
     // const dropped = hauler.room.find(FIND_DROPPED_RESOURCES)
@@ -197,7 +214,8 @@ const assignHauler = (hauler: Creep): Creep => {
     const containers = (hauler.room
       .find(FIND_STRUCTURES, { filter: { structureType: STRUCTURE_CONTAINER }}) as StructureStorage[])
       .sort((a,b) => a.store[RESOURCE_ENERGY] < b.store[RESOURCE_ENERGY] ? 1 : -1)
-    return assign(containers[0].id, T_WITHDRAW)(hauler)
+    if(containers[0]){ return assign(containers[0].id, T_WITHDRAW)(hauler) }
+    return assign(hauler.room.storage.id, T_WITHDRAW)(hauler)
   }
 
   const tower = _.find(Game.structures, whereLowEnergyTower) as StructureTower
@@ -207,13 +225,7 @@ const assignHauler = (hauler: Creep): Creep => {
     filter: (s: StructureExtension) => s.structureType === STRUCTURE_EXTENSION && s.store.getFreeCapacity(RESOURCE_ENERGY) !== 0
   }) as StructureExtension | null
   if(extension){ return assign(extension.id, T_TRANSFER)(hauler) }
-
-  const store = hauler.room.storage
-  if(typeof store !== 'undefined'){
-    return assign(store.id, T_TRANSFER)(hauler)
-  }
-  // Supply towers and extensions
-  return hauler
+  return assign(hauler.room.storage.id, T_TRANSFER)(hauler)
 }
 
 const assignUpgrader = (u: Creep) => {
@@ -228,7 +240,7 @@ const assignClaimer = (c: Creep) => {
     if(!c.room.controller){ console.log('ERROR: No controller to upgrade'); return c }
     return assign(c.room.controller.id, T_CLAIM)(c)
   } else {
-    return assign(c.memory.assigned, T_MOVE)(c)
+    return assign(c.memory.assigned, T_TRAVEL)(c)
   }
 }
 
@@ -286,16 +298,17 @@ const taskMine = (c:Creep) => {
   return c
 }
 
-const taskMove = (c:Creep) => {
-  const flag = c.memory.payload.flagPos
-  const target = new RoomPosition(flag.x, flag.y, flag.roomName)
+const taskTravel = (c:Creep) => {
+  const flag = c.memory.payload && c.memory.payload.flagPos
+  const target = flag
+    ? new RoomPosition(flag.x, flag.y, flag.roomName)
+    : new RoomPosition(10,10,c.memory.assigned)
   if(c.room.name === target.roomName){ return reAssign(c) }
   c.moveTo(target)
   return c
 }
 
 const taskClaim = (c:Creep) => {
-  if(c.carry.energy === 0){ return reAssign(c) }
   if(!c.room.controller){ console.log('no controller');return c }
   if(c.room.controller.my){ return assign('urself', T_RECYCLE)(c) }
   const target = c.room.controller.pos
@@ -335,7 +348,7 @@ export const workCreep = (c:Creep) => {
     case T_UPGRADE: return taskUpgrade(c)
     case T_TRANSFER: return taskTransfer(c)
     case T_REPAIR: return taskRepair(c)
-    case T_MOVE: return taskMove(c)
+    case T_TRAVEL: return taskTravel(c)
     case T_CLAIM: return taskClaim(c)
     case T_RECYCLE: return taskRecycle(c)
     default: log('Cannot find task', c.memory.task)
@@ -356,8 +369,7 @@ export const workTower = ( t: StructureTower ) => {
   const structure = t.pos.findClosestByRange(FIND_STRUCTURES, {
     filter: s =>
       ([STRUCTURE_CONTAINER,STRUCTURE_ROAD,STRUCTURE_RAMPART,STRUCTURE_WALL] as any).includes(s.structureType)
-      && s.hits < s.hitsMax
-      && s.hits < 10000
+      && s.hits < (s.hitsMax < 300000 ? s.hitsMax : 300000)
   })
   if(!structure){ return t; }
   const result = t.repair(structure)

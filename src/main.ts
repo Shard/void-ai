@@ -52,6 +52,13 @@ const getSpawnerAction = ( s:StructureSpawn ) => {
       return makeCreep(r as CreepRole)
     }
   }
+  // @TODO should have some way of deciding wether or not a room wants to contribute or get help
+  for(const room of Object.values(Game.rooms)){
+    if(room.name === s.room.name || !room.memory.desiredCreeps){ continue }
+    for(const r of [ROLE_PLEB] as CreepRole[]){
+      if(room.memory.counts[r] < room.memory.desiredCreeps[r]){ return makeCreep(r, room) }
+    }
+  }
   return null
 }
 
@@ -68,7 +75,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
   // Update Room-Creep state and do creep logic
   for(const name in Game.creeps){
     const creep = Game.creeps[name]
-    creep.room.memory.counts[creep.memory.role]++
+    Game.rooms[creep.memory.home].memory.counts[creep.memory.role]++
     workCreep(assignCreep(creep))
   }
 

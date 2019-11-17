@@ -1,6 +1,16 @@
 # Void AI
 
-My personal ai for screeps
+My personal AI for screeps which uses a declarative/DSL approach.
+
+## Roadmap
+
+- [ ] Scavange room / Automatic room designations
+- [ ] Base planning/building functionality
+- [ ] Creep Renewal / proper recycling task
+- [ ] Reconstruction of destroyed buildings
+- [ ] Soldiers
+- [ ] Labs
+- [ ] Links
 
 ## Basic Usage
 
@@ -12,15 +22,9 @@ You will need:
  - Python 2 (for node-gyp, [Python 3 is not supported](https://github.com/nodejs/node-gyp/issues/193))
  - Build tools (`apt install build-essential` for Ubuntu, [Visual Studio](https://www.visualstudio.com/vs/) for Windows, etc)
 
-
-Download the latest source [here](https://github.com/screepers/screeps-typescript-starter/archive/master.zip) and extract it to a folder.
-
 Open the folder in your terminal and run your package manager to install install the required packages and TypeScript declaration files:
 
 ```bash
-# npm
-npm install
-
 # yarn
 yarn
 ```
@@ -38,8 +42,6 @@ Running `rollup -c` will compile your code and do a "dry run", preparing the cod
 You can use `-cw` instead of `-c` to automatically re-run when your source code changes - for example, `rollup -cw --environment DEST:main` will automatically upload your code to the `main` configuration every time your code is changed.
 
 Finally, there are also NPM scripts that serve as aliases for these commands in `package.json` for IDE integration. Running `npm run push-main` is equivalent to `rollup -c --environment DEST:main`, and `npm run watch-sim` is equivalent to `rollup -cw --dest sim`.
-
-#### Important! To upload code to a private server, you must have [screepsmod-auth](https://github.com/ScreepsMods/screepsmod-auth) installed and configured!
 
 ## Typings
 
